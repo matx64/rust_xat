@@ -18,7 +18,7 @@ impl ChatMessage {
         kind: ChatMessageKind,
         sent_at: Option<i64>,
     ) -> Self {
-        let modified_text = match kind {
+        let text = match kind {
             ChatMessageKind::Join => format!("{} joined the chat.", username),
             ChatMessageKind::Left => format!("{} left the chat.", username),
             ChatMessageKind::Normal => String::from(text),
@@ -32,7 +32,7 @@ impl ChatMessage {
         Self {
             room_id: String::from(room_id),
             username: String::from(username),
-            text: modified_text,
+            text,
             kind,
             sent_at,
         }
@@ -56,13 +56,10 @@ impl ChatMessage {
         let room_id = Self::get_attribute(&attrs, "room_id");
         let username = Self::get_attribute(&attrs, "username");
         let text = Self::get_attribute(&attrs, "text");
-        let sent_at = Self::get_attribute(&attrs, "sent_at");
-        let kind = match Self::get_attribute(&attrs, "kind").to_lowercase().as_str() {
-            "join" => ChatMessageKind::Join,
-            "left" => ChatMessageKind::Left,
-            _ => ChatMessageKind::Normal,
-        };
-        let sent_at = sent_at.parse::<i64>().expect("Invalid sent_at");
+        let sent_at = Self::get_attribute(&attrs, "sent_at")
+            .parse::<i64>()
+            .expect("Invalid sent_at");
+        let kind = ChatMessageKind::from_str(Self::get_attribute(&attrs, "kind"));
 
         Self::new(room_id, username, text, kind, Some(sent_at))
     }
@@ -83,6 +80,16 @@ pub enum ChatMessageKind {
     Normal,
     Join,
     Left,
+}
+
+impl ChatMessageKind {
+    pub fn from_str(kind: &str) -> Self {
+        match kind.to_lowercase().as_str() {
+            "join" => ChatMessageKind::Join,
+            "left" => ChatMessageKind::Left,
+            _ => ChatMessageKind::Normal,
+        }
+    }
 }
 
 impl fmt::Display for ChatMessageKind {
