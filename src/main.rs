@@ -3,7 +3,7 @@ mod models;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        ConnectInfo, WebSocketUpgrade,
+        ConnectInfo, Query, WebSocketUpgrade,
     },
     response::IntoResponse,
     routing::get,
@@ -11,9 +11,16 @@ use axum::{
 };
 use axum_extra::{headers::UserAgent, TypedHeader};
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use models::message::ChatMessage;
+use models::message::{ChatMessage, ChatMessageKind};
+use serde::Deserialize;
 use std::{net::SocketAddr, ops::ControlFlow};
 use tower_http::services::ServeDir;
+
+#[derive(Deserialize)]
+struct WSParams {
+    room_id: String,
+    username: String,
+}
 
 #[tokio::main]
 async fn main() {
@@ -33,22 +40,34 @@ async fn main() {
 }
 
 async fn ws_handler(
+    Query(params): Query<WSParams>,
     ws: WebSocketUpgrade,
     user_agent: Option<TypedHeader<UserAgent>>,
     addr: ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
     let addr = addr.to_string();
+    let room_id = params.room_id.clone();
+    let username = params.username.clone();
+
     let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
         user_agent.to_string()
     } else {
         String::from("Unknown browser")
     };
-    println!("`{user_agent}` at {addr} connected.");
-    ws.on_upgrade(move |socket| handle_socket(socket, addr))
+    println!("{username} at {addr} connected in room {room_id} with {user_agent}");
+
+    ws.on_upgrade(move |socket| handle_socket(socket, addr, room_id, username))
 }
 
-async fn handle_socket(socket: WebSocket, who: String) {
+async fn handle_socket(socket: WebSocket, who: String, room_id: String, username: String) {
     let (mut sender, mut receiver) = socket.split();
+
+    sender
+        .send(Message::Text(
+            ChatMessage::new(&room_id, &username, "", ChatMessageKind::Join, None).to_string(),
+        ))
+        .await
+        .unwrap();
 
     let _recv_task = tokio::spawn(async move {
         let mut cnt = 0;
@@ -59,6 +78,7 @@ async fn handle_socket(socket: WebSocket, who: String) {
                 break;
             }
         }
+
         cnt
     });
 }

@@ -27,8 +27,9 @@ const handleMessage = {
 connectForm.addEventListener("submit", function (e) {
   e.preventDefault();
 
-  const username = usernameInput.value;
   const room_id = roomInput.value;
+  const username = usernameInput.value;
+  window.username = username;
 
   setupWebSocket(room_id, username);
   setupMessageForm(room_id, username);
@@ -63,8 +64,8 @@ function setupMessageForm(room_id, username) {
     e.preventDefault();
 
     const message = new ChatMessage({
-      room_id: room_id,
-      username: username,
+      room_id,
+      username,
       text: messageInput.value,
       kind: "normal",
       sent_at: Math.floor(Date.now() / 1000),
