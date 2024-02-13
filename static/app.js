@@ -13,29 +13,29 @@ const chatScroll = document.getElementById("chat-scroll");
 let roomUsers = new Set();
 
 const handleMessage = {
-  normal: (text, sentAt, username) => {
-    if (username == window.username) {
+  normal: (message) => {
+    if (message.username == window.username) {
       messagesList.innerHTML += `<div class="m-2"><div class="d-flex flex-column text-white rounded p-3 float-end msg-sent">
-                <div class="text-break">${text}</div> 
-                <div class="fs-6 fw-light text-end">${sentAt}</div>
+                <div class="text-break">${message.text}</div> 
+                <div class="fs-6 fw-light text-end">${message.sent_at}</div>
             </div></div>`;
     } else {
       messagesList.innerHTML += `<div class="m-2"><div class="d-flex flex-column text-white rounded p-3 float-start msg-received">
-                <div class="fw-bold">${username}</div> 
-                <div class="text-break">${text}</div> 
-                <div class="fs-6 fw-light text-end">${sentAt}</div>
+                <div class="fw-bold">${message.username}</div> 
+                <div class="text-break">${message.text}</div> 
+                <div class="fs-6 fw-light text-end">${message.sent_at}</div>
             </div></div>`;
     }
   },
-  join: (text, sentAt, username) => {
-    roomUsers.add(username);
-    usersList.innerHTML += `<div class="text-white m-2 fs-6 fw-bold text-break" id="user-${username}">${username}</div>`;
-    messagesList.innerHTML += `<div class="text-success text-center my-2"><strong>${text}</strong> ${sentAt}</div>`;
+  join: (message) => {
+    roomUsers.add(message.username);
+    usersList.innerHTML += `<div class="text-white m-2 fs-6 fw-bold text-break" id="user-${message.username}">${message.username}</div>`;
+    messagesList.innerHTML += `<div class="text-success text-center my-2"><strong>${message.text}</strong> ${message.sent_at}</div>`;
   },
-  left: (text, sentAt, username) => {
-    roomUsers.delete(username);
-    document.getElementById("user-" + username).remove();
-    messagesList.innerHTML += `<div class="text-danger text-center my-2"><strong>${text}</strong> ${sentAt}</div>`;
+  left: (message) => {
+    roomUsers.delete(message.username);
+    document.getElementById("user-" + message.username).remove();
+    messagesList.innerHTML += `<div class="text-danger text-center my-2"><strong>${message.text}</strong> ${message.sent_at}</div>`;
   },
 };
 
@@ -43,7 +43,7 @@ connectForm.addEventListener("submit", function (e) {
   e.preventDefault();
 
   window.username = usernameInput.value;
-  window.roomId = roomInput.value;
+  window.room_id = roomInput.value;
 
   setupWebSocket();
   setupMessageForm();
@@ -58,17 +58,17 @@ function setupWebSocket() {
   window.ws = new WebSocket(
     "ws://" +
       window.location.host +
-      "/connect?roomId=" +
-      window.roomId +
+      "/ws?room_id=" +
+      window.room_id +
       "&username=" +
       window.username
   );
 
   window.ws.addEventListener("message", function (e) {
-    const data = JSON.parse(e.data);
-    data.sentAt = new Date(data.sentAt * 1000).toLocaleTimeString();
+    const message = ChatMessage.parse(e.data);
+    message.sent_at = new Date(message.sent_at * 1000).toLocaleTimeString();
 
-    handleMessage[data.kind](data.text, data.sentAt, data.username);
+    handleMessage[message.kind](message);
     chatScroll.scrollIntoView({ behavior: "smooth", block: "end" });
   });
 }
@@ -77,15 +77,15 @@ function setupMessageForm() {
   messageForm.addEventListener("submit", function (e) {
     e.preventDefault();
 
-    window.ws.send(
-      JSON.stringify({
-        roomId: window.roomId,
-        username: window.username,
-        text: messageInput.value,
-        kind: "normal",
-        sentAt: Math.floor(Date.now() / 1000),
-      })
-    );
+    const message = new ChatMessage({
+      room_id: window.room_id,
+      username: window.username,
+      text: messageInput.value,
+      kind: "normal",
+      sent_at: Math.floor(Date.now() / 1000),
+    });
+
+    window.ws.send(message.to_string());
 
     messageInput.value = "";
   });
